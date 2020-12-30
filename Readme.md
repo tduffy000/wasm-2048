@@ -10,7 +10,7 @@
   <a href="https://2048.dev.family">Live Demo</a>
 </p>
 
-[The famous 2048 game](https://github.com/gabrielecirulli/2048) implemented with Rust ([Yew](https://yew.rs/)) and compiled to WASM.
+A search-based "AI" player of [the famous 2048 game](https://github.com/gabrielecirulli/2048) forked from the [dev.family](https://dev.family/) implementation using Rust ([Yew](https://yew.rs/)) and compiled to WASM. Currently, we make use of several heuristics, e.g. monotonicity and smoothness, inside of an expectimax tree search. 
 
 # Running
 
@@ -18,10 +18,10 @@ The simplest way to run is via docker:
 
 ```
 docker build -t wasm-2048 .
-docker run -it --rm -p 8080:8080 wasm-2048
+docker run -it --rm -p 8080:8000 wasm-2048
 ```
 
-Then open http://127.0.0.1:8080.
+Then open http://127.0.0.1:8080 and watch the computer play itself. Hopefully it makes it to 2048!
 
 <hr />
 

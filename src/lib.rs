@@ -4,11 +4,16 @@ use rand::seq::IteratorRandom;
 use rand::thread_rng;
 use rand::{rngs::ThreadRng, Rng};
 use std::ops::{Add, AddAssign, Sub};
+use std::time::Duration;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
+use yew::services::interval::{IntervalService, IntervalTask};
 use yew::services::keyboard::{KeyListenerHandle, KeyboardService};
 use yew::services::render::{RenderService, RenderTask};
 use yew::utils::document;
+
+mod eval;
+use eval::BoardEval;
 
 #[derive(Debug, Copy, Clone)]
 struct Vec2 {
@@ -34,7 +39,7 @@ impl Sub<Vec2> for Vec2 {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum Direction {
+pub enum Direction {
     Left,
     Right,
     Up,
@@ -134,7 +139,7 @@ impl AddAssign<Direction> for Position {
 }
 
 #[derive(Debug, Copy, Clone, Eq)]
-struct Tile {
+pub struct Tile {
     number: i32,
     state: TileState,
     previous_position: Option<Position>,
@@ -176,7 +181,7 @@ impl PartialEq for Tile {
 type Cell = Option<Tile>;
 
 #[derive(Debug, Copy, Clone)]
-struct Grid {
+pub struct Grid {
     cells: [Cell; 16],
     rng: ThreadRng,
     enable_new_tiles: bool,
@@ -281,6 +286,29 @@ impl Grid {
         self.cells[new_position.index()] = Some(start_tile);
 
         return true;
+    }
+
+    fn empty_positions(&self) -> Option<Vec<bool>> {
+        let mut empty_cells = self.cells.iter().map(|x| x.is_none());
+        if empty_cells.all(|x| !x) {
+            return None
+        }
+        Some(empty_cells.collect())
+    }
+
+    fn is_valid_move(&self, pos: usize) -> bool {
+        match self.empty_positions() {
+            Some(cells) => cells[pos],
+            None => false
+        }
+    }
+
+    fn add_tile(&mut self, number: i32, pos: usize) -> bool {
+        if !self.is_valid_move(pos) {
+            return false
+        }
+        self.cells[pos] = Some(Tile::new(number));
+        true
     }
 
     fn add_random_tile(&mut self) {
@@ -552,6 +580,7 @@ struct Model {
     keyboard_event_listener: KeyListenerHandle,
     current_render: i32,
     touch_start: Option<TouchEvent>,
+    move_provider_task: IntervalTask,
 }
 
 impl Model {
@@ -564,6 +593,7 @@ enum Msg {
     KeyboardEvent(KeyboardEvent),
     TouchStart(TouchEvent),
     TouchEnd(TouchEvent),
+    ProvideMove,
 }
 
 impl Component for Model {
@@ -576,17 +606,29 @@ impl Component for Model {
             (&link).callback(|e: KeyboardEvent| Msg::KeyboardEvent(e)),
         );
 
+        let move_timer = Duration::new(1, 0);
+        let move_provider_task = IntervalService::spawn(
+            move_timer,
+            (&link).callback(|_| Msg::ProvideMove)
+        );
+
         Self {
             link,
             grid: Grid::default(),
             touch_start: None,
             current_render: 0,
             keyboard_event_listener,
+            move_provider_task,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::ProvideMove => {
+                let eval = BoardEval::new(self.grid, 3);
+                let direction = eval.suggest_move();
+                self.move_in(direction);
+            },
             Msg::KeyboardEvent(e) => match e.key_code() {
                 37 => self.move_in(Direction::Left),
                 38 => self.move_in(Direction::Up),
